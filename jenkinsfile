@@ -33,7 +33,7 @@ pipeline {
 
                     withCredentials([
                         usernamePassword(
-                            credentialsId: 'dockerhub-credentials',
+                            credentialsId: 'dockerhub-cred',
                             usernameVariable: 'DOCKER_USERNAME',
                             passwordVariable: 'DOCKER_PASSWORD'
                         )
@@ -62,7 +62,7 @@ pipeline {
 
                     withCredentials([
                         usernamePassword(
-                            credentialsId: 'github-credentials',
+                            credentialsId: 'github-cred',
                             usernameVariable: 'GIT_USERNAME',
                             passwordVariable: 'GIT_TOKEN'
                         )
