@@ -27,11 +27,9 @@ pipeline {
             steps {
                 script {
 
-                    echo "Building and pushing Docker image for branch: ${env.main}"
+                  echo "Building and pushing Docker image"
 
-                    def imageTag = "build-${env.BUILD_NUMBER}"
-                    env.IMAGE_TAG = imageTag
-
+            def imageTag = "build-${BUILD_NUMBER}"
                     withCredentials([
                         usernamePassword(
                             credentialsId: 'dockerhub-credentials',
