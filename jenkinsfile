@@ -1,0 +1,100 @@
+pipeline {
+    agent any
+
+    options {
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        ImageName = "omkarpatne/multibranch-flask-app"
+        Git_User = "omkarpatne20"
+        Git_Email = "patneomkar2026@gmail.com"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build and Push Image') {
+            when {
+                branch 'main'
+            }
+
+            steps {
+                script {
+
+                    echo "Building and pushing Docker image for branch: ${env.BRANCH_NAME}"
+
+                    def imageTag = "build-${env.BUILD_NUMBER}"
+                    env.IMAGE_TAG = imageTag
+
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: 'dockerhub-credentials',
+                            usernameVariable: 'DOCKER_USERNAME',
+                            passwordVariable: 'DOCKER_PASSWORD'
+                        )
+                    ]) {
+
+                        sh """
+                            docker build -t ${ImageName}:${imageTag} .
+                            echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+                            docker push ${ImageName}:${imageTag}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Update Kubernetes Manifest') {
+            when {
+                branch 'main'
+            }
+
+            steps {
+                script {
+
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: 'github-credentials',
+                            usernameVariable: 'GIT_USERNAME',
+                            passwordVariable: 'GIT_TOKEN'
+                        )
+                    ]) {
+
+                        sh """
+                            git config --global user.name "${Git_User}"
+                            git config --global user.email "${Git_Email}"
+
+                            git fetch origin main
+                            git checkout main
+                            git reset --hard origin/main
+
+                            sed -i 's|image: omkarpatne/multibranch-flask-app:.*|image: omkarpatne/multibranch-flask-app:${IMAGE_TAG}|' k8s/deployment.yaml
+
+                            git add k8s/deployment.yaml
+
+                            git diff --cached --quiet || git commit -m "Update image tag to ${IMAGE_TAG}"
+
+                            git push https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/omkarpatne20/Multi-branch-production.git main
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline completed successfully."
+        }
+
+        failure {
+            echo "Pipeline failed."
+        }
+    }
+}
