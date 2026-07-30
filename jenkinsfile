@@ -6,9 +6,9 @@ pipeline {
     }
 
     environment {
-        ImageName = "omkarpatne/multibranch-flask-app"
-        Git_User = "omkarpatne"
-        Git_Email = "patneomkar2026@gmail.com"
+        IMAGE_NAME = "omkarpatne/multibranch-flask-app"
+        GIT_USER = "omkarpatne20"
+        GIT_EMAIL = "patneomkar2026@gmail.com"
     }
 
     stages {
@@ -19,7 +19,7 @@ pipeline {
             }
         }
 
-        stage('Build and Push Image') {
+        stage('Build & Push Docker Image') {
             when {
                 branch 'main'
             }
@@ -27,9 +27,10 @@ pipeline {
             steps {
                 script {
 
-                  echo "Building and pushing Docker image"
+                    env.IMAGE_TAG = "build-${env.BUILD_NUMBER}"
 
-            def imageTag = "build-${BUILD_NUMBER}"
+                    echo "Building Docker Image: ${IMAGE_NAME}:${env.IMAGE_TAG}"
+
                     withCredentials([
                         usernamePassword(
                             credentialsId: 'dockerhub-credentials',
@@ -39,9 +40,12 @@ pipeline {
                     ]) {
 
                         sh """
-                            docker build -t ${ImageName}:${imageTag} .
-                            echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
-                            docker push ${ImageName}:${imageTag}
+                            docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+
+                            echo "${DOCKER_PASSWORD}" | docker login \
+                            -u "${DOCKER_USERNAME}" --password-stdin
+
+                            docker push ${IMAGE_NAME}:${IMAGE_TAG}
                         """
                     }
                 }
@@ -65,20 +69,16 @@ pipeline {
                     ]) {
 
                         sh """
-                            git config --global user.name "${Git_User}"
-                            git config --global user.email "${Git_Email}"
+                            git config --global user.name "${GIT_USER}"
+                            git config --global user.email "${GIT_EMAIL}"
 
-                            git fetch origin main
-                            git checkout main
-                            git reset --hard origin/main
+                            sed -i 's|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g' K8S/deployment.yaml
 
-                            sed -i 's|image: omkarpatne/multibranch-flask-app:.*|image: omkarpatne/multibranch-flask-app:${IMAGE_TAG}|' k8s/deployment.yaml
-
-                            git add k8s/deployment.yaml
+                            git add K8S/deployment.yaml
 
                             git diff --cached --quiet || git commit -m "Update image tag to ${IMAGE_TAG}"
 
-                            git push https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/omkarpatne20/Multi-branch-production.git main
+                            git push https://${GIT_USERNAME}:${GIT_TOKEN}@github.com/omkarpatne20/Multi-branch-production.git HEAD:main
                         """
                     }
                 }
@@ -87,6 +87,10 @@ pipeline {
     }
 
     post {
+        always {
+            cleanWs()
+        }
+
         success {
             echo "Pipeline completed successfully."
         }
